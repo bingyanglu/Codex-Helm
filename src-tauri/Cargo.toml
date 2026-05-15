@@ -2,7 +2,7 @@
 name = "codex-helm"
 version = "0.1.0"
 description = "Codex Helm desktop app"
-authors = ["Codex Helm Contributors"]
+authors = ["ludao"]
 edition = "2021"
 
 [lib]
