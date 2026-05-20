@@ -6,6 +6,8 @@ import type {
   ProviderValidationResult
 } from "@/types/provider";
 
+export type RunMode = "official" | "mixed" | "apikey";
+
 type ProviderStore = {
   providers: ProviderRecord[];
   loading: boolean;
@@ -15,6 +17,7 @@ type ProviderStore = {
   deleteProvider: (localId: number) => Promise<void>;
   activateProvider: (localId: number) => Promise<void>;
   restoreOfficialDefaults: () => Promise<void>;
+  switchRunMode: (mode: RunMode, localId?: number) => Promise<void>;
   testProviderConnectivity: (provider: ProviderRecord) => Promise<ProviderConnectivityResult>;
   validateProvider: (provider: ProviderRecord) => Promise<ProviderValidationResult>;
 };
@@ -51,6 +54,13 @@ export const useProviderStore = create<ProviderStore>((set) => ({
   },
   restoreOfficialDefaults: async () => {
     const providers = await tauriInvoke<ProviderRecord[]>("restore_official_provider_defaults");
+    set({ providers });
+  },
+  switchRunMode: async (mode, localId) => {
+    const providers = await tauriInvoke<ProviderRecord[]>("switch_run_mode", {
+      mode,
+      localId: localId ?? null
+    });
     set({ providers });
   },
   testProviderConnectivity: async (provider) => {

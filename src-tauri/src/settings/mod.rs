@@ -17,6 +17,7 @@ impl SettingsStore {
     pub fn load_or_create(&self) -> AppResult<SettingsFile> {
         let connection = self.open()?;
         self.ensure_schema(&connection)?;
+        self.migrate_add_requires_openai_auth(&connection)?;
         self.migrate_legacy_json_if_needed(&connection)?;
         self.seed_builtins(&connection)?;
         self.load_from_db(&connection)
@@ -124,6 +125,7 @@ impl SettingsStore {
                 http_headers_json TEXT NOT NULL DEFAULT '{}',
                 query_params_json TEXT NOT NULL DEFAULT '{}',
                 supports_websockets INTEGER NOT NULL DEFAULT 0,
+                requires_openai_auth INTEGER NOT NULL DEFAULT 0,
                 active INTEGER NOT NULL DEFAULT 0,
                 enabled INTEGER NOT NULL DEFAULT 1,
                 last_validated_at TEXT,
@@ -145,6 +147,21 @@ impl SettingsStore {
         Ok(())
     }
 
+    fn migrate_add_requires_openai_auth(&self, connection: &Connection) -> AppResult<()> {
+        let has_column: bool = connection.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('providers') WHERE name = 'requires_openai_auth'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )? > 0;
+        if !has_column {
+            connection.execute(
+                "ALTER TABLE providers ADD COLUMN requires_openai_auth INTEGER NOT NULL DEFAULT 0",
+                [],
+            )?;
+        }
+        Ok(())
+    }
+
     fn load_from_db(&self, connection: &Connection) -> AppResult<SettingsFile> {
         let version = read_state(connection, "version")?
             .and_then(|value| value.parse::<u32>().ok())
@@ -157,8 +174,8 @@ impl SettingsStore {
 
         let mut statement = connection.prepare(
             "SELECT local_id, provider_id, name, kind, base_url, model, api_key, env_key,
-                    http_headers_json, query_params_json, supports_websockets, active, enabled,
-                    last_validated_at, last_validation_status
+                    http_headers_json, query_params_json, supports_websockets, requires_openai_auth,
+                    active, enabled, last_validated_at, last_validation_status
              FROM providers
              ORDER BY kind = 'builtin' DESC, active DESC, name COLLATE NOCASE, local_id",
         )?;
@@ -185,9 +202,9 @@ impl SettingsStore {
             connection.execute(
                 "INSERT INTO providers (
                     provider_id, name, kind, base_url, model, api_key, env_key,
-                    http_headers_json, query_params_json, supports_websockets, active, enabled,
-                    last_validated_at, last_validation_status
-                 ) VALUES (?1, ?2, 'builtin', ?3, ?4, ?5, ?6, '{}', '{}', ?7, ?8, ?9, ?10, ?11)
+                    http_headers_json, query_params_json, supports_websockets, requires_openai_auth,
+                    active, enabled, last_validated_at, last_validation_status
+                 ) VALUES (?1, ?2, 'builtin', ?3, ?4, ?5, ?6, '{}', '{}', ?7, 0, ?8, ?9, ?10, ?11)
                  ON CONFLICT(provider_id) WHERE kind = 'builtin' DO NOTHING",
                 params![
                     builtin.provider_id,
@@ -280,6 +297,7 @@ fn builtin_providers() -> Vec<ProviderRecord> {
             http_headers: BTreeMap::new(),
             query_params: BTreeMap::new(),
             supports_websockets: false,
+            requires_openai_auth: false,
             active: true,
             enabled: true,
             last_validated_at: None,
@@ -297,6 +315,7 @@ fn builtin_providers() -> Vec<ProviderRecord> {
             http_headers: BTreeMap::new(),
             query_params: BTreeMap::new(),
             supports_websockets: false,
+            requires_openai_auth: false,
             active: false,
             enabled: true,
             last_validated_at: None,
@@ -314,6 +333,7 @@ fn builtin_providers() -> Vec<ProviderRecord> {
             http_headers: BTreeMap::new(),
             query_params: BTreeMap::new(),
             supports_websockets: false,
+            requires_openai_auth: false,
             active: false,
             enabled: true,
             last_validated_at: None,
@@ -331,10 +351,10 @@ fn upsert_provider(connection: &Connection, provider: &ProviderRecord) -> AppRes
             "UPDATE providers
              SET provider_id = ?1, name = ?2, kind = ?3, base_url = ?4, model = ?5,
                  api_key = ?6, env_key = ?7, http_headers_json = ?8, query_params_json = ?9,
-                 supports_websockets = ?10, active = ?11, enabled = ?12,
-                 last_validated_at = ?13, last_validation_status = ?14,
+                 supports_websockets = ?10, requires_openai_auth = ?11, active = ?12, enabled = ?13,
+                 last_validated_at = ?14, last_validation_status = ?15,
                  updated_at = CURRENT_TIMESTAMP
-             WHERE local_id = ?15",
+             WHERE local_id = ?16",
             params![
                 provider.provider_id,
                 provider.name,
@@ -346,6 +366,7 @@ fn upsert_provider(connection: &Connection, provider: &ProviderRecord) -> AppRes
                 http_headers_json,
                 query_params_json,
                 bool_to_i64(provider.supports_websockets),
+                bool_to_i64(provider.requires_openai_auth),
                 bool_to_i64(provider.active),
                 bool_to_i64(provider.enabled),
                 provider.last_validated_at,
@@ -359,9 +380,9 @@ fn upsert_provider(connection: &Connection, provider: &ProviderRecord) -> AppRes
     connection.execute(
         "INSERT INTO providers (
             provider_id, name, kind, base_url, model, api_key, env_key,
-            http_headers_json, query_params_json, supports_websockets, active, enabled,
-            last_validated_at, last_validation_status
-         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+            http_headers_json, query_params_json, supports_websockets, requires_openai_auth,
+            active, enabled, last_validated_at, last_validation_status
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)",
         params![
             provider.provider_id,
             provider.name,
@@ -373,6 +394,7 @@ fn upsert_provider(connection: &Connection, provider: &ProviderRecord) -> AppRes
             http_headers_json,
             query_params_json,
             bool_to_i64(provider.supports_websockets),
+            bool_to_i64(provider.requires_openai_auth),
             bool_to_i64(provider.active),
             bool_to_i64(provider.enabled),
             provider.last_validated_at,
@@ -388,8 +410,8 @@ fn select_provider_by_local_id(
 ) -> AppResult<ProviderRecord> {
     Ok(connection.query_row(
         "SELECT local_id, provider_id, name, kind, base_url, model, api_key, env_key,
-                http_headers_json, query_params_json, supports_websockets, active, enabled,
-                last_validated_at, last_validation_status
+                http_headers_json, query_params_json, supports_websockets, requires_openai_auth,
+                active, enabled, last_validated_at, last_validation_status
          FROM providers
          WHERE local_id = ?1",
         [local_id],
@@ -417,10 +439,11 @@ fn provider_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ProviderRecord
         http_headers: serde_json::from_str(&http_headers_json).unwrap_or_default(),
         query_params: serde_json::from_str(&query_params_json).unwrap_or_default(),
         supports_websockets: row.get::<_, i64>(10)? != 0,
-        active: row.get::<_, i64>(11)? != 0,
-        enabled: row.get::<_, i64>(12)? != 0,
-        last_validated_at: row.get(13)?,
-        last_validation_status: row.get(14)?,
+        requires_openai_auth: row.get::<_, i64>(11)? != 0,
+        active: row.get::<_, i64>(12)? != 0,
+        enabled: row.get::<_, i64>(13)? != 0,
+        last_validated_at: row.get(14)?,
+        last_validation_status: row.get(15)?,
     })
 }
 
@@ -494,6 +517,7 @@ impl LegacyProviderRecord {
             http_headers: self.http_headers,
             query_params: self.query_params,
             supports_websockets: self.supports_websockets,
+            requires_openai_auth: false,
             active: self.active,
             enabled: self.enabled,
             last_validated_at: self.last_validated_at,

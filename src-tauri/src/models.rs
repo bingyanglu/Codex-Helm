@@ -76,6 +76,7 @@ pub struct ProviderRecord {
     pub http_headers: BTreeMap<String, String>,
     pub query_params: BTreeMap<String, String>,
     pub supports_websockets: bool,
+    pub requires_openai_auth: bool,
     pub active: bool,
     pub enabled: bool,
     pub last_validated_at: Option<String>,

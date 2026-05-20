@@ -8,6 +8,7 @@ import { Toast } from "@/components/ui/Toast";
 import { MonitorPage } from "@/pages/Monitor";
 import { OverviewPage } from "@/pages/Overview";
 import { ProviderPage } from "@/pages/Provider";
+import { RunModePage } from "@/pages/RunMode";
 import { useFirstStartStore } from "@/stores/useFirstStartStore";
 import { useMonitorStore } from "@/stores/useMonitorStore";
 import { useOverviewStore } from "@/stores/useOverviewStore";
@@ -16,6 +17,7 @@ import { useUiStore } from "@/stores/useUiStore";
 
 const PAGE_TITLE = {
   overview: "概览",
+  runmode: "运行模式",
   provider: "模型服务",
   monitor: "用量监控"
 } as const;
@@ -61,6 +63,7 @@ export default function App() {
         />
         <div className="content">
           {currentPage === "overview" && <OverviewPage />}
+          {currentPage === "runmode" && <RunModePage />}
           {currentPage === "provider" && <ProviderPage />}
           {currentPage === "monitor" && <MonitorPage />}
         </div>

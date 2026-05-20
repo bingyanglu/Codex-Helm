@@ -32,6 +32,14 @@ pub fn activate_provider(local_id: i64) -> Result<Vec<ProviderRecord>, String> {
 }
 
 #[tauri::command]
+pub fn switch_run_mode(mode: String, local_id: Option<i64>) -> Result<Vec<ProviderRecord>, String> {
+    let executable_path = std::env::current_exe().map_err(|e| e.to_string())?;
+    ProviderService::new(AppPaths::detect())
+        .switch_run_mode(&mode, local_id, executable_path.display().to_string())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn restore_official_provider_defaults() -> Result<Vec<ProviderRecord>, String> {
     ProviderService::new(AppPaths::detect())
         .restore_official_provider_defaults()

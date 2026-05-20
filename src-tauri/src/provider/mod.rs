@@ -105,7 +105,11 @@ impl ProviderService {
                 Value::Boolean(provider.supports_websockets),
             );
 
-            if !provider.api_key.is_empty() {
+            if provider.requires_openai_auth {
+                provider_table.remove("auth");
+                provider_table.remove("env_key");
+                provider_table.insert("requires_openai_auth".into(), Value::Boolean(true));
+            } else if !provider.api_key.is_empty() {
                 provider_table.remove("requires_openai_auth");
                 provider_table.remove("env_key");
                 provider_table.insert(
@@ -187,6 +191,45 @@ impl ProviderService {
         store.save(&settings)?;
 
         Ok(settings.providers)
+    }
+
+    pub fn switch_run_mode(
+        &self,
+        mode: &str,
+        local_id: Option<i64>,
+        executable_path: String,
+    ) -> AppResult<Vec<ProviderRecord>> {
+        match mode {
+            "official" => self.restore_official_provider_defaults(),
+            "mixed" | "apikey" => {
+                let store = SettingsStore::new(self.paths.clone());
+                let mut settings = store.load_or_create()?;
+
+                let target_id = local_id
+                    .or(settings.last_active_custom_provider_id)
+                    .or_else(|| {
+                        settings
+                            .providers
+                            .iter()
+                            .find(|p| p.kind == ProviderKind::Custom)
+                            .map(|p| p.local_id)
+                    })
+                    .ok_or_else(|| AppError::Message("没有可用的自定义 API 服务".into()))?;
+
+                let provider = settings
+                    .providers
+                    .iter_mut()
+                    .find(|p| p.local_id == target_id)
+                    .ok_or_else(|| AppError::Message("provider not found".into()))?;
+
+                provider.requires_openai_auth = mode == "mixed";
+                let updated = provider.clone();
+                store.save_provider(&updated)?;
+
+                self.activate_provider(target_id, executable_path)
+            }
+            _ => Err(AppError::Message(format!("unknown run mode: {mode}"))),
+        }
     }
 
     pub fn token_for_provider(&self, provider_id: &str) -> AppResult<String> {

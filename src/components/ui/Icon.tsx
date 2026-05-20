@@ -1,5 +1,6 @@
 export type IconName =
   | "overview"
+  | "runmode"
   | "provider"
   | "monitor"
   | "refresh"
@@ -45,6 +46,14 @@ export function Icon({ name, size = 16, color = "currentColor", strokeWidth = 1.
           <rect x="14" y="3" width="7" height="5" rx="1.5" />
           <rect x="14" y="12" width="7" height="9" rx="1.5" />
           <rect x="3" y="16" width="7" height="5" rx="1.5" />
+        </svg>
+      );
+    case "runmode":
+      return (
+        <svg {...props}>
+          <path d="M3 6h18M3 12h12M3 18h7" />
+          <circle cx="19" cy="16" r="3" />
+          <path d="M17.5 16h3M19 14.5v3" strokeWidth={1.4} />
         </svg>
       );
     case "provider":
