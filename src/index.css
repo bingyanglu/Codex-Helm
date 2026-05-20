@@ -1075,6 +1075,127 @@ select {
   background: var(--bg-card);
 }
 
+/* ── Panel (Codex++-style card with header) ─────────────────── */
+
+.panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.panel-head {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card-muted);
+}
+
+.panel-title {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.panel-sub {
+  font-size: 12px;
+  color: var(--text-3);
+  margin-top: 3px;
+}
+
+.panel-body {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.panel-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+/* relay metrics grid (inside panel) */
+
+.relay-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.relay-metric {
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.relay-metric-label {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-bottom: 3px;
+}
+
+.relay-metric-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  word-break: break-all;
+}
+
+/* hint line below mode cards */
+
+.hint-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--info-bg);
+  color: var(--info-fg);
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+
+/* field helpers inside panels */
+
+.mb-fields {
+  margin-bottom: 2px;
+}
+
+select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: #fff;
+  color: var(--text);
+  appearance: auto;
+}
+
+select.select-danger {
+  border-color: var(--danger-dot);
+  background: var(--danger-bg);
+  color: var(--danger-fg);
+}
+
+/* raw toml */
+
+.raw-toml {
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-2);
+  margin: 0;
+}
+
+@media (max-width: 800px) {
+  .relay-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .mode-compare-head,
 .mode-compare-row {
   display: grid;

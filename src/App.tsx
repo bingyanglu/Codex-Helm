@@ -49,6 +49,7 @@ export default function App() {
 
   const handleRefresh = () => {
     if (currentPage === "overview") void refreshOverview();
+    if (currentPage === "runmode") { void refreshProviders(); void refreshOverview(); }
     if (currentPage === "provider") void refreshProviders();
     if (currentPage === "monitor") void refreshMonitor();
   };
