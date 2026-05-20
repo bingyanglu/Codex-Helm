@@ -432,6 +432,7 @@ mod tests {
             http_headers: BTreeMap::new(),
             query_params: BTreeMap::new(),
             supports_websockets: false,
+            requires_openai_auth: false,
             active: false,
             enabled: true,
             last_validated_at: None,

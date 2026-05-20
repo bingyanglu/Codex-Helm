@@ -78,6 +78,7 @@ impl FirstStartService {
                 http_headers: Default::default(),
                 query_params: Default::default(),
                 supports_websockets: false,
+                requires_openai_auth: false,
                 active: false,
                 enabled: true,
                 last_validated_at: None,
