@@ -317,8 +317,8 @@ base_url = "http://8.222.84.224:5667/v1"
     }
 
     #[test]
-    fn read_overview_status_infers_api_mode_when_custom_provider_is_active_and_auth_file_is_missing()
-    {
+    fn read_overview_status_infers_api_mode_when_custom_provider_is_active_and_auth_file_is_missing(
+    ) {
         let temp = tempdir().unwrap();
         let home = temp.path().join("home");
         let paths = AppPaths::from_home(home.clone());

@@ -9,9 +9,9 @@ type AuthStore = {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  saveProviderKey: (providerId: string, apiKey: string) => Promise<void>;
-  deleteProviderKey: (providerId: string) => Promise<void>;
-  validateProviderKey: (providerId: string) => Promise<ProviderConnectivityResult>;
+  saveProviderKey: (localId: number, apiKey: string) => Promise<void>;
+  deleteProviderKey: (localId: number) => Promise<void>;
+  validateProviderKey: (localId: number) => Promise<ProviderConnectivityResult>;
 };
 
 export const useAuthStore = create<AuthStore>((set, get) => ({
@@ -35,10 +35,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       });
     }
   },
-  saveProviderKey: async (providerId, apiKey) => {
-    const current = get().providers.find((provider) => provider.id === providerId);
+  saveProviderKey: async (localId, apiKey) => {
+    const current = get().providers.find((provider) => provider.localId === localId);
     if (!current) {
-      throw new Error(`Provider ${providerId} 不存在`);
+      throw new Error(`Provider ${localId} 不存在`);
     }
 
     const providers = await tauriInvoke<ProviderRecord[]>("save_provider", {
@@ -49,10 +49,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     });
     set({ providers });
   },
-  deleteProviderKey: async (providerId) => {
-    const current = get().providers.find((provider) => provider.id === providerId);
+  deleteProviderKey: async (localId) => {
+    const current = get().providers.find((provider) => provider.localId === localId);
     if (!current) {
-      throw new Error(`Provider ${providerId} 不存在`);
+      throw new Error(`Provider ${localId} 不存在`);
     }
 
     const providers = await tauriInvoke<ProviderRecord[]>("save_provider", {
@@ -63,10 +63,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     });
     set({ providers });
   },
-  validateProviderKey: async (providerId) => {
-    const current = get().providers.find((provider) => provider.id === providerId);
+  validateProviderKey: async (localId) => {
+    const current = get().providers.find((provider) => provider.localId === localId);
     if (!current) {
-      throw new Error(`Provider ${providerId} 不存在`);
+      throw new Error(`Provider ${localId} 不存在`);
     }
 
     return tauriInvoke<ProviderConnectivityResult>("validate_provider_key", {

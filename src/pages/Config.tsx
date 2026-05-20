@@ -26,7 +26,7 @@ export function ConfigPage() {
     return <section className="p-6 text-sm text-[var(--color-text-secondary)]">暂无全局配置。</section>;
   }
 
-  const providerOptions = providers.map((provider) => provider.id);
+  const providerOptions = Array.from(new Set(providers.map((provider) => provider.providerId)));
   if (!providerOptions.includes(config.modelProvider) && config.modelProvider) {
     providerOptions.unshift(config.modelProvider);
   }

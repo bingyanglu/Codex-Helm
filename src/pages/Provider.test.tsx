@@ -2,150 +2,236 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ProviderPage } from "./Provider";
 
-const providerStoreMock = vi.hoisted(() => ({
-  activateProvider: vi.fn(),
-  restoreOfficialDefaults: vi.fn(),
-  testProviderConnectivity: vi.fn(),
-  validateProvider: vi.fn()
-}));
+const { providerStoreMock, uiState, providers } = vi.hoisted(() => {
+  const providers = [
+    {
+      localId: 11,
+      providerId: "jobmd",
+      name: "Acme",
+      kind: "custom" as const,
+      baseUrl: "https://example.com/v1",
+      model: "gpt-5.5",
+      apiKey: "sk-acme-123456",
+      envKey: "",
+      httpHeaders: {},
+      queryParams: {},
+      supportsWebsockets: true,
+      active: true,
+      enabled: true,
+      lastValidatedAt: null,
+      lastValidationStatus: "unknown"
+    },
+    {
+      localId: 12,
+      providerId: "jobmd",
+      name: "Beta",
+      kind: "custom" as const,
+      baseUrl: "https://beta.example.com/v1",
+      model: "gpt-5.4",
+      apiKey: "sk-beta-123456",
+      envKey: "",
+      httpHeaders: {},
+      queryParams: {},
+      supportsWebsockets: false,
+      active: false,
+      enabled: true,
+      lastValidatedAt: null,
+      lastValidationStatus: "unknown"
+    }
+  ];
+
+  return {
+    providers,
+    providerStoreMock: {
+      refresh: vi.fn(),
+      saveProvider: vi.fn(),
+      deleteProvider: vi.fn(),
+      activateProvider: vi.fn(),
+      restoreOfficialDefaults: vi.fn(),
+      testProviderConnectivity: vi.fn(),
+      validateProvider: vi.fn()
+    },
+    uiState: {
+      providerModal: null as { mode: "add" | "edit"; localId?: number } | null,
+      setProviderModal: vi.fn(),
+      setToast: vi.fn(),
+      setRestartNotice: vi.fn()
+    }
+  };
+});
 
 vi.mock("@/stores/useProviderStore", () => ({
   useProviderStore: () => ({
-    providers: [
-      {
-        id: "acme",
-        name: "Acme",
-        kind: "custom",
-        baseUrl: "https://example.com/v1",
-        model: "gpt-5.5",
-        apiKey: "sk-acme-123456",
-        envKey: "",
-        httpHeaders: {},
-        queryParams: {},
-        supportsWebsockets: true,
-        active: true,
-        enabled: true,
-        lastValidatedAt: null,
-        lastValidationStatus: "unknown"
-      }
-    ],
+    providers,
     loading: false,
-    refresh: vi.fn(),
-    saveProvider: vi.fn(),
-    deleteProvider: vi.fn(),
-    activateProvider: providerStoreMock.activateProvider,
-    restoreOfficialDefaults: providerStoreMock.restoreOfficialDefaults,
-    testProviderConnectivity: providerStoreMock.testProviderConnectivity,
-    validateProvider: providerStoreMock.validateProvider
+    error: null,
+    ...providerStoreMock
   })
 }));
 
 vi.mock("@/stores/useOverviewStore", () => ({
   useOverviewStore: (selector: (state: { refresh: ReturnType<typeof vi.fn> }) => unknown) =>
-    selector({
-      refresh: vi.fn()
-    })
+    selector({ refresh: vi.fn() })
 }));
 
-test("renders only custom providers and the custom form", () => {
+vi.mock("@/stores/useUiStore", () => ({
+  useUiStore: (selector: (state: typeof uiState) => unknown) => selector(uiState)
+}));
+
+beforeEach(() => {
+  uiState.providerModal = null;
+  providerStoreMock.refresh.mockClear();
+  providerStoreMock.saveProvider.mockReset();
+  providerStoreMock.deleteProvider.mockReset();
+  providerStoreMock.activateProvider.mockReset();
+  providerStoreMock.restoreOfficialDefaults.mockReset();
+  providerStoreMock.testProviderConnectivity.mockReset();
+  providerStoreMock.validateProvider.mockReset();
+  uiState.setProviderModal.mockClear();
+  uiState.setToast.mockClear();
+  uiState.setRestartNotice.mockClear();
+});
+
+test("renders the current provider, saved services, add row and official-login disclosure", () => {
   render(<ProviderPage />);
 
+  expect(screen.getByText("当前正在使用")).toBeInTheDocument();
   expect(screen.getByText("Acme")).toBeInTheDocument();
-  expect(screen.getByText("WebSockets")).toBeInTheDocument();
-  expect(
-    screen.getByText("填写服务地址、模型名称和密钥，保存后点“测试是否可用”。测试通过后，再设为当前使用。")
-  ).toBeInTheDocument();
-  expect(screen.getByText("当前使用")).toBeInTheDocument();
-  expect(screen.getByText("自定义")).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: /设为当前使用/i })).toBeInTheDocument();
-  expect(screen.getByPlaceholderText("服务标识，例如 jobmd")).toBeInTheDocument();
-  expect(screen.getByPlaceholderText("默认模型，例如 gpt-5.5")).toBeInTheDocument();
-  expect(screen.getByText("使用官方登录")).toBeInTheDocument();
-  expect(
-    screen.getByText("如果你想改回官方账号登录，点击下面的按钮。系统会停止使用当前自定义服务，并清空当前模型设置，改回 Codex 官方默认模型。")
-  ).toBeInTheDocument();
-  expect(
-    screen.getByText("已保存的自定义服务信息不会删除。切换后，在 Codex 右下角设置中退出并重新登录个人账号；如果没有退出选项，直接登录即可。")
-  ).toHaveClass("font-semibold", "text-amber-950");
-  expect(screen.getByRole("button", { name: "改用官方登录" })).toBeInTheDocument();
+  expect(screen.getByText("其他保存的服务")).toBeInTheDocument();
+  expect(screen.getByText("Beta")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "添加模型服务分 2 步即可完成" })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "想改用 Codex 官方账号登录？展开" })).toBeInTheDocument();
 });
 
-test("loads an existing provider into the form when editing", async () => {
+test("opens edit mode from the current provider action menu", async () => {
   const user = userEvent.setup();
 
   render(<ProviderPage />);
+  await user.click(screen.getByRole("button", { name: "更多操作" }));
+  await user.click(screen.getByRole("menuitem", { name: "修改设置" }));
 
-  await user.click(screen.getByRole("button", { name: "修改" }));
-
-  expect(screen.getByDisplayValue("acme")).toBeInTheDocument();
-  expect(screen.getByDisplayValue("Acme")).toBeInTheDocument();
-  expect(screen.getByDisplayValue("https://example.com/v1")).toBeInTheDocument();
-  expect(screen.getByDisplayValue("gpt-5.5")).toBeInTheDocument();
-  expect(screen.getByRole("checkbox", { name: "是否使用 WebSockets" })).toBeChecked();
+  expect(uiState.setProviderModal).toHaveBeenCalledWith({ mode: "edit", localId: 11 });
 });
 
-test("shows restart notice after activating an api provider", async () => {
+test("shows restart notice after activating another provider", async () => {
   providerStoreMock.activateProvider.mockResolvedValue(undefined);
   const user = userEvent.setup();
 
   render(<ProviderPage />);
+  await user.click(within(screen.getByTestId("provider-row-12")).getByRole("button", { name: "启用" }));
 
-  await user.click(screen.getByRole("button", { name: "设为当前使用" }));
-
-  expect(await screen.findByText("已切换到 Acme")).toBeInTheDocument();
-  expect(
-    screen.getByText("必须先完全退出并重新启动 Codex 软件，新的配置才会生效。")
-  ).toBeInTheDocument();
+  expect(providerStoreMock.activateProvider).toHaveBeenCalledWith(12);
+  expect(uiState.setToast).toHaveBeenCalledWith("已切换到 Beta");
 });
 
-test("restart notice does not link to dialog sync after activating provider", async () => {
-  providerStoreMock.activateProvider.mockResolvedValue(undefined);
-  const user = userEvent.setup();
-
-  render(<ProviderPage />);
-
-  await user.click(screen.getByRole("button", { name: "设为当前使用" }));
-
-  expect(await screen.findByText("已切换到 Acme")).toBeInTheDocument();
-  const restartNotice = screen
-    .getByText("必须先完全退出并重新启动 Codex 软件，新的配置才会生效。")
-    .closest("div")?.parentElement;
-
-  expect(screen.queryByText(/同步/)).not.toBeInTheDocument();
-  expect(within(restartNotice as HTMLElement).getAllByRole("button")).toHaveLength(1);
-});
-
-test("shows restart notice after switching back to official login", async () => {
+test("shows restart notice after switching back to official login from disclosure", async () => {
   providerStoreMock.restoreOfficialDefaults.mockResolvedValue(undefined);
   const user = userEvent.setup();
 
   render(<ProviderPage />);
-
+  await user.click(screen.getByRole("button", { name: "想改用 Codex 官方账号登录？展开" }));
   await user.click(screen.getByRole("button", { name: "改用官方登录" }));
 
-  expect(await screen.findByText("已切回官方登录配置")).toBeInTheDocument();
-  expect(
-    screen.getByText("必须先完全退出并重新启动 Codex 软件，新的配置才会生效。")
-  ).toBeInTheDocument();
+  expect(providerStoreMock.restoreOfficialDefaults).toHaveBeenCalled();
+  expect(uiState.setToast).toHaveBeenCalledWith("已切回官方登录配置");
 });
 
-test("shows connectivity status and latency before the edit action", async () => {
+test("guided provider modal uses the two-step flow and requires a successful test before finishing", async () => {
+  uiState.providerModal = { mode: "add" };
   providerStoreMock.validateProvider.mockResolvedValue({ ok: true, detail: "ok" });
   providerStoreMock.testProviderConnectivity.mockResolvedValue({
     reachable: true,
     authenticated: true,
-    latencyMs: 85,
+    latencyMs: 92,
     detail: "ok"
   });
+  providerStoreMock.saveProvider.mockResolvedValue([
+    ...providers,
+    {
+      localId: 13,
+      providerId: "cpa",
+      name: "cpa",
+      kind: "custom",
+      baseUrl: "http://cpa.host.dxy/v1",
+      model: "gpt-5.4",
+      apiKey: "sk-jobmd-123456",
+      envKey: "",
+      httpHeaders: {},
+      queryParams: {},
+      supportsWebsockets: false,
+      active: false,
+      enabled: true,
+      lastValidatedAt: null,
+      lastValidationStatus: "unknown"
+    }
+  ]);
+  providerStoreMock.activateProvider.mockResolvedValue(undefined);
   const user = userEvent.setup();
 
   render(<ProviderPage />);
 
-  await user.click(screen.getByRole("button", { name: "测试是否可用" }));
+  await user.type(screen.getByLabelText(/服务地址/), "http://cpa.host.dxy/v1");
+  await user.type(screen.getByLabelText("API 密钥"), "sk-jobmd-123456");
+  await user.click(screen.getByRole("button", { name: "下一步" }));
+  await user.type(screen.getByLabelText("默认模型"), "gpt-5.4");
+  expect(screen.getByRole("button", { name: "完成并启用" })).toBeDisabled();
+  await user.click(screen.getAllByRole("button", { name: "测试连通" })[1]);
+  expect(await screen.findByText("连通成功 · 模型可调用")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "完成并启用" }));
 
-  const latency = await screen.findByText("可用 85 ms");
-  expect(latency).toBeInTheDocument();
-  expect(latency.compareDocumentPosition(screen.getByRole("button", { name: "修改" }))).toBe(
-    Node.DOCUMENT_POSITION_FOLLOWING
+  expect(providerStoreMock.saveProvider).toHaveBeenCalledWith(
+    expect.objectContaining({
+      baseUrl: "http://cpa.host.dxy/v1",
+      model: "gpt-5.4",
+      providerId: "cpa",
+      name: "cpa"
+    })
   );
+  expect(providerStoreMock.activateProvider).toHaveBeenCalledWith(13);
+});
+
+test("add provider modal does not treat records without localId as edit targets", async () => {
+  const originalLocalId = providers[0].localId;
+  // Simulates stale records from an older bridge shape during migration.
+  delete (providers[0] as Partial<(typeof providers)[number]>).localId;
+  uiState.providerModal = { mode: "add" };
+  const user = userEvent.setup();
+
+  render(<ProviderPage />);
+  await user.type(screen.getByLabelText(/服务地址/), "http://cpa.host.dxy/v1");
+
+  expect(screen.getByRole("dialog", { name: /添加模型服务/ })).toBeInTheDocument();
+  expect(screen.getByLabelText(/服务地址/)).toHaveValue("http://cpa.host.dxy/v1");
+  expect(screen.getByLabelText("API 密钥")).toHaveValue("");
+
+  providers[0].localId = originalLocalId;
+});
+
+test("add provider modal keeps unsaved advanced draft after close and reopen", async () => {
+  uiState.providerModal = { mode: "add" };
+  uiState.setProviderModal.mockImplementation((modal) => {
+    uiState.providerModal = modal;
+  });
+  const user = userEvent.setup();
+
+  const view = render(<ProviderPage />);
+  await user.type(screen.getByLabelText(/服务地址/), "http://cpa.host.dxy/v1");
+  await user.type(screen.getByLabelText("API 密钥"), "sk-jobmd-123456");
+  await user.click(screen.getByRole("button", { name: /高级/ }));
+  await user.clear(screen.getByLabelText(/显示名称/));
+  await user.type(screen.getByLabelText(/显示名称/), "jobmd-key-a");
+
+  expect(screen.getByRole("dialog", { name: /添加模型服务/ })).toBeInTheDocument();
+  expect(screen.getByLabelText(/显示名称/)).toHaveValue("jobmd-key-a");
+
+  await user.click(screen.getByRole("button", { name: "关闭" }));
+  view.rerender(<ProviderPage />);
+  uiState.providerModal = { mode: "add" };
+  view.rerender(<ProviderPage />);
+  await user.click(screen.getByRole("button", { name: /高级/ }));
+
+  expect(screen.getByLabelText(/服务地址/)).toHaveValue("http://cpa.host.dxy/v1");
+  expect(screen.getByLabelText("API 密钥")).toHaveValue("sk-jobmd-123456");
+  expect(screen.getByLabelText(/显示名称/)).toHaveValue("jobmd-key-a");
+  uiState.setProviderModal.mockReset();
 });

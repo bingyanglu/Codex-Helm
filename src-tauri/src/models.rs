@@ -63,7 +63,9 @@ pub enum ProviderKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderRecord {
-    pub id: String,
+    #[serde(default)]
+    pub local_id: i64,
+    pub provider_id: String,
     pub name: String,
     pub kind: ProviderKind,
     pub base_url: String,
@@ -81,9 +83,61 @@ pub struct ProviderRecord {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SettingsFile {
     pub version: u32,
     pub providers: Vec<ProviderRecord>,
+    #[serde(default)]
+    pub first_start_import_handled: bool,
+    #[serde(default)]
+    pub last_active_custom_provider_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FirstStartCandidate {
+    pub id: String,
+    pub name: String,
+    pub base_url: String,
+    pub model: String,
+    pub api_key: String,
+    pub source: String,
+    pub complete: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FirstStartScanState {
+    Detected,
+    Partial,
+    Fresh,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FirstStartScanResult {
+    pub state: FirstStartScanState,
+    pub handled: bool,
+    pub candidates: Vec<FirstStartCandidate>,
+    pub config_exists: bool,
+    pub auth_exists: bool,
+    pub config_path: Option<String>,
+    pub auth_mode: Option<AuthMode>,
+    pub env_keys: Vec<String>,
+    pub last_active_custom_provider_id: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FirstStartImportInput {
+    pub candidates: Vec<FirstStartCandidate>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FirstStartImportResult {
+    pub providers: Vec<ProviderRecord>,
+    pub imported_provider_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

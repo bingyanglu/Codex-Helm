@@ -17,17 +17,17 @@ pub fn save_provider(provider: ProviderRecord) -> Result<Vec<ProviderRecord>, St
 }
 
 #[tauri::command]
-pub fn delete_provider(provider_id: String) -> Result<Vec<ProviderRecord>, String> {
+pub fn delete_provider(local_id: i64) -> Result<Vec<ProviderRecord>, String> {
     ProviderService::new(AppPaths::detect())
-        .delete_provider(&provider_id)
+        .delete_provider(local_id)
         .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
-pub fn activate_provider(provider_id: String) -> Result<Vec<ProviderRecord>, String> {
+pub fn activate_provider(local_id: i64) -> Result<Vec<ProviderRecord>, String> {
     let executable_path = std::env::current_exe().map_err(|error| error.to_string())?;
     ProviderService::new(AppPaths::detect())
-        .activate_provider(provider_id, executable_path.display().to_string())
+        .activate_provider(local_id, executable_path.display().to_string())
         .map_err(|error| error.to_string())
 }
 

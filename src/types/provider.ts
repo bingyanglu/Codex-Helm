@@ -1,7 +1,8 @@
 export type ProviderKind = "builtin" | "custom";
 
 export type ProviderRecord = {
-  id: string;
+  localId: number;
+  providerId: string;
   name: string;
   kind: ProviderKind;
   baseUrl: string;

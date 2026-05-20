@@ -41,14 +41,14 @@ impl MonitorService {
         let context = self.context()?;
         let (start_time, end_time) = build_range(range_days)?;
         let value = self
-                .get_json(
-                    &context,
-                    "/kpi",
-                    &[
-                        ("start_time", start_time.as_str()),
-                        ("end_time", end_time.as_str()),
-                    ],
-                )
+            .get_json(
+                &context,
+                "/kpi",
+                &[
+                    ("start_time", start_time.as_str()),
+                    ("end_time", end_time.as_str()),
+                ],
+            )
             .await?;
 
         Ok(MonitorSummary {
@@ -253,7 +253,7 @@ impl MonitorService {
             .load_or_create()?
             .providers
             .into_iter()
-            .find(|provider| provider.id == provider_id)
+            .find(|provider| provider.active && provider.provider_id == provider_id)
             .map(|provider| provider.api_key)
             .filter(|api_key| !api_key.trim().is_empty())
             .ok_or_else(|| AppError::Message("当前模型服务未保存 API Key".into()))?;
@@ -346,7 +346,12 @@ fn read_f64(value: &JsonValue, key: &str) -> f64 {
     value
         .get(key)
         .and_then(JsonValue::as_f64)
-        .or_else(|| value.get(key).and_then(JsonValue::as_i64).map(|item| item as f64))
+        .or_else(|| {
+            value
+                .get(key)
+                .and_then(JsonValue::as_i64)
+                .map(|item| item as f64)
+        })
         .unwrap_or(0.0)
 }
 
@@ -397,17 +402,23 @@ fn parse_monitor_quota(value: &JsonValue) -> MonitorQuota {
         .get("secondary_window")
         .or_else(|| rate_limit.get("secondaryWindow"));
 
-    let five_hour_window = select_quota_window(primary_window, secondary_window, FIVE_HOUR_WINDOW_SECONDS);
-    let weekly_window = select_quota_window(primary_window, secondary_window, WEEKLY_WINDOW_SECONDS);
+    let five_hour_window =
+        select_quota_window(primary_window, secondary_window, FIVE_HOUR_WINDOW_SECONDS);
+    let weekly_window =
+        select_quota_window(primary_window, secondary_window, WEEKLY_WINDOW_SECONDS);
     let limit_reached = rate_limit
         .get("limit_reached")
         .or_else(|| rate_limit.get("limitReached"))
         .and_then(JsonValue::as_bool)
         .unwrap_or(false)
-        || matches!(rate_limit.get("allowed").and_then(JsonValue::as_bool), Some(false));
+        || matches!(
+            rate_limit.get("allowed").and_then(JsonValue::as_bool),
+            Some(false)
+        );
 
     let mut windows = Vec::new();
-    if let Some(window) = window_to_view("five-hour", "5 小时限额", five_hour_window, limit_reached) {
+    if let Some(window) = window_to_view("five-hour", "5 小时限额", five_hour_window, limit_reached)
+    {
         windows.push(window);
     }
     if let Some(window) = window_to_view("weekly", "周限额", weekly_window, limit_reached) {
@@ -479,7 +490,12 @@ fn quota_reset_label(window: &JsonValue) -> String {
 
     reset_at
         .and_then(|value| chrono::DateTime::from_timestamp_millis(value))
-        .map(|timestamp| timestamp.with_timezone(&Local).format("%m/%d %H:%M").to_string())
+        .map(|timestamp| {
+            timestamp
+                .with_timezone(&Local)
+                .format("%m/%d %H:%M")
+                .to_string()
+        })
         .unwrap_or_else(|| "-".into())
 }
 
@@ -491,7 +507,8 @@ fn read_optional_string(value: &JsonValue, keys: &[&str]) -> Option<String> {
 }
 
 fn read_optional_i64(value: &JsonValue, keys: &[&str]) -> Option<i64> {
-    keys.iter().find_map(|key| value.get(*key).and_then(value_to_i64))
+    keys.iter()
+        .find_map(|key| value.get(*key).and_then(value_to_i64))
 }
 
 fn read_optional_number(value: &JsonValue, keys: &[&str]) -> Option<f64> {
@@ -521,9 +538,18 @@ mod tests {
 
     #[test]
     fn monitor_root_url_strips_v1_suffix_only_when_present() {
-        assert_eq!(monitor_root_url("http://8.222.84.224:5667/v1"), "http://8.222.84.224:5667");
-        assert_eq!(monitor_root_url("http://cpa.host.dxy/v1"), "http://cpa.host.dxy");
-        assert_eq!(monitor_root_url("http://cpa.host.dxy"), "http://cpa.host.dxy");
+        assert_eq!(
+            monitor_root_url("http://8.222.84.224:5667/v1"),
+            "http://8.222.84.224:5667"
+        );
+        assert_eq!(
+            monitor_root_url("http://cpa.host.dxy/v1"),
+            "http://cpa.host.dxy"
+        );
+        assert_eq!(
+            monitor_root_url("http://cpa.host.dxy"),
+            "http://cpa.host.dxy"
+        );
     }
 
     #[test]
@@ -534,7 +560,10 @@ mod tests {
             MONITOR_MANAGEMENT_PREFIX,
             "/kpi"
         );
-        assert_eq!(url, "http://cpa.host.dxy/v0/management/public/custom/monitor/kpi");
+        assert_eq!(
+            url,
+            "http://cpa.host.dxy/v0/management/public/custom/monitor/kpi"
+        );
     }
 
     #[test]
@@ -546,8 +575,16 @@ mod tests {
 
         let points = build_intraday_hour_slots(now, 8, 2);
 
-        assert_eq!(points.first().map(|value| value.format("%H:%M").to_string()), Some("06:00".into()));
-        assert_eq!(points.last().map(|value| value.format("%H:%M").to_string()), Some("16:00".into()));
+        assert_eq!(
+            points
+                .first()
+                .map(|value| value.format("%H:%M").to_string()),
+            Some("06:00".into())
+        );
+        assert_eq!(
+            points.last().map(|value| value.format("%H:%M").to_string()),
+            Some("16:00".into())
+        );
         assert_eq!(points.len(), 11);
     }
 
@@ -562,7 +599,11 @@ mod tests {
             JsonValue::String("2026-05-14T12:00:00+08:00".into()),
             JsonValue::String("2026-05-14T14:00:00+08:00".into()),
         ];
-        let input = vec![JsonValue::from(10), JsonValue::from(20), JsonValue::from(30)];
+        let input = vec![
+            JsonValue::from(10),
+            JsonValue::from(20),
+            JsonValue::from(30),
+        ];
         let output = vec![JsonValue::from(1), JsonValue::from(2), JsonValue::from(3)];
 
         let points = build_intraday_trend_points(&hours, &input, &output, now, 8, 2);

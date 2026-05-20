@@ -28,41 +28,41 @@ impl ProviderService {
         validate_provider(&provider)?;
 
         let store = SettingsStore::new(self.paths.clone());
-        let mut settings = store.load_or_create()?;
-
-        if let Some(existing) = settings
-            .providers
-            .iter_mut()
-            .find(|existing| existing.id == provider.id)
-        {
-            *existing = provider;
-        } else {
-            settings.providers.push(provider);
-        }
-
-        store.save(&settings)?;
-        Ok(settings.providers)
+        store.save_provider(&provider)?;
+        Ok(store.load_or_create()?.providers)
     }
 
-    pub fn delete_provider(&self, provider_id: &str) -> AppResult<Vec<ProviderRecord>> {
-        if is_reserved_provider_id(provider_id) {
+    pub fn delete_provider(&self, local_id: i64) -> AppResult<Vec<ProviderRecord>> {
+        let store = SettingsStore::new(self.paths.clone());
+        let mut settings = store.load_or_create()?;
+        let provider = settings
+            .providers
+            .iter()
+            .find(|provider| provider.local_id == local_id)
+            .cloned()
+            .ok_or_else(|| AppError::Message("provider not found".into()))?;
+
+        if provider.kind == ProviderKind::Builtin {
             return Err(AppError::Message(
                 "built-in providers cannot be deleted".into(),
             ));
         }
 
-        let store = SettingsStore::new(self.paths.clone());
-        let mut settings = store.load_or_create()?;
+        if provider.active {
+            return Err(AppError::Message(
+                "active provider cannot be deleted".into(),
+            ));
+        }
         settings
             .providers
-            .retain(|provider| provider.id != provider_id);
+            .retain(|provider| provider.local_id != local_id);
         store.save(&settings)?;
         Ok(settings.providers)
     }
 
     pub fn activate_provider(
         &self,
-        provider_id: String,
+        local_id: i64,
         executable_path: String,
     ) -> AppResult<Vec<ProviderRecord>> {
         let store = SettingsStore::new(self.paths.clone());
@@ -70,19 +70,19 @@ impl ProviderService {
         let provider = settings
             .providers
             .iter()
-            .find(|item| item.id == provider_id)
+            .find(|item| item.local_id == local_id)
             .cloned()
             .ok_or_else(|| AppError::Message("provider not found".into()))?;
 
         let config_store = ConfigStore::new(self.paths.clone());
         let current = config_store.get_raw_config().unwrap_or_default();
         let mut parsed = parse_toml_or_empty(&current)?;
-        cleanup_inactive_provider_tables(&mut parsed, &provider.id);
+        cleanup_inactive_provider_tables(&mut parsed, &provider.provider_id);
 
         set_value(
             &mut parsed,
             &["model_provider"],
-            Value::String(provider.id.clone()),
+            Value::String(provider.provider_id.clone()),
         );
         if !provider.model.trim().is_empty() {
             set_value(
@@ -92,10 +92,10 @@ impl ProviderService {
             );
         }
 
-        if provider.kind == ProviderKind::Builtin && provider.id == "openai" {
+        if provider.kind == ProviderKind::Builtin && provider.provider_id == "openai" {
             remove_provider_table(&mut parsed, "openai");
         } else {
-            let provider_table = provider_table(&mut parsed, &provider.id);
+            let provider_table = provider_table(&mut parsed, &provider.provider_id);
             provider_table.insert("name".into(), Value::String(provider.name.clone()));
             provider_table.insert("base_url".into(), Value::String(provider.base_url.clone()));
             insert_string_map(provider_table, "http_headers", &provider.http_headers);
@@ -116,8 +116,8 @@ impl ProviderService {
                             (
                                 "args".into(),
                                 Value::Array(vec![
-                                    Value::String("--provider-token".into()),
-                                    Value::String(provider.id.clone()),
+                                    Value::String("--provider-token-id".into()),
+                                    Value::String(provider.local_id.to_string()),
                                 ]),
                             ),
                         ]
@@ -142,8 +142,13 @@ impl ProviderService {
         std::fs::write(self.paths.config_file(), raw_toml)?;
 
         for existing in &mut settings.providers {
-            existing.active = existing.id == provider.id;
+            existing.active = existing.local_id == provider.local_id;
         }
+        settings.last_active_custom_provider_id = if provider.kind == ProviderKind::Custom {
+            Some(provider.local_id)
+        } else {
+            None
+        };
         store.save(&settings)?;
 
         Ok(settings.providers)
@@ -176,8 +181,9 @@ impl ProviderService {
         std::fs::write(self.paths.config_file(), raw_toml)?;
 
         for existing in &mut settings.providers {
-            existing.active = existing.id == "openai";
+            existing.active = existing.provider_id == "openai";
         }
+        settings.last_active_custom_provider_id = None;
         store.save(&settings)?;
 
         Ok(settings.providers)
@@ -188,10 +194,21 @@ impl ProviderService {
         settings
             .providers
             .into_iter()
-            .find(|provider| provider.id == provider_id)
+            .find(|provider| provider.provider_id == provider_id && provider.active)
             .map(|provider| provider.api_key)
             .filter(|api_key| !api_key.is_empty())
             .ok_or_else(|| AppError::Message("provider token not found".into()))
+    }
+
+    pub fn token_for_provider_local_id(&self, local_id: i64) -> AppResult<String> {
+        let api_key = SettingsStore::new(self.paths.clone())
+            .provider_by_local_id(local_id)
+            .map(|provider| provider.api_key)?;
+        if api_key.is_empty() {
+            Err(AppError::Message("provider token not found".into()))
+        } else {
+            Ok(api_key)
+        }
     }
 
     pub fn validate_provider(
@@ -221,7 +238,7 @@ impl ProviderService {
 }
 
 fn validate_provider(provider: &ProviderRecord) -> AppResult<()> {
-    if provider.id.trim().is_empty() {
+    if provider.provider_id.trim().is_empty() {
         return Err(AppError::Message("provider id is required".into()));
     }
 
@@ -229,12 +246,12 @@ fn validate_provider(provider: &ProviderRecord) -> AppResult<()> {
         return Err(AppError::Message("provider name is required".into()));
     }
 
-    if provider.kind == ProviderKind::Custom && is_reserved_provider_id(&provider.id) {
+    if provider.kind == ProviderKind::Custom && is_reserved_provider_id(&provider.provider_id) {
         return Err(AppError::Message("custom provider id is reserved".into()));
     }
 
     if !provider
-        .id
+        .provider_id
         .chars()
         .all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '-' || ch == '_')
     {
@@ -359,113 +376,174 @@ mod tests {
     use std::collections::BTreeMap;
     use tempfile::tempdir;
 
+    fn custom_provider(provider_id: &str, name: &str, api_key: &str) -> ProviderRecord {
+        ProviderRecord {
+            local_id: 0,
+            provider_id: provider_id.into(),
+            name: name.into(),
+            kind: ProviderKind::Custom,
+            base_url: "https://example.com/v1".into(),
+            model: "gpt-5.5".into(),
+            api_key: api_key.into(),
+            env_key: String::new(),
+            http_headers: BTreeMap::new(),
+            query_params: BTreeMap::new(),
+            supports_websockets: false,
+            active: false,
+            enabled: true,
+            last_validated_at: None,
+            last_validation_status: "unknown".into(),
+        }
+    }
+
     #[test]
     fn save_provider_rejects_reserved_id_for_custom_provider() {
         let temp = tempdir().unwrap();
-        let paths = AppPaths::from_home(temp.path().to_path_buf());
-        let service = ProviderService::new(paths);
+        let service = ProviderService::new(AppPaths::from_home(temp.path().to_path_buf()));
 
         let error = service
-            .save_provider(ProviderRecord {
-                id: "openai".into(),
-                name: "Bad Custom".into(),
-                kind: ProviderKind::Custom,
-                base_url: "https://example.com/v1".into(),
-                model: "gpt-5.5".into(),
-                api_key: String::new(),
-                env_key: String::new(),
-                http_headers: Default::default(),
-                query_params: Default::default(),
-                supports_websockets: false,
-                active: false,
-                enabled: true,
-                last_validated_at: None,
-                last_validation_status: "unknown".into(),
-            })
+            .save_provider(custom_provider("openai", "Bad Custom", ""))
             .unwrap_err();
 
         assert!(error.to_string().contains("reserved"));
     }
 
     #[test]
-    fn activate_custom_provider_writes_auth_command_and_model_provider() {
+    fn supports_multiple_custom_records_with_same_provider_id() {
+        let temp = tempdir().unwrap();
+        let service = ProviderService::new(AppPaths::from_home(temp.path().to_path_buf()));
+
+        service
+            .save_provider(custom_provider("jobmd", "JobMD A", "sk-a"))
+            .unwrap();
+        let providers = service
+            .save_provider(custom_provider("jobmd", "JobMD B", "sk-b"))
+            .unwrap();
+        let jobmd: Vec<_> = providers
+            .iter()
+            .filter(|provider| provider.provider_id == "jobmd")
+            .collect();
+
+        assert_eq!(jobmd.len(), 2);
+        assert_ne!(jobmd[0].local_id, jobmd[1].local_id);
+    }
+
+    #[test]
+    fn activate_custom_provider_writes_auth_command_with_local_id() {
         let temp = tempdir().unwrap();
         let paths = AppPaths::from_home(temp.path().to_path_buf());
         let service = ProviderService::new(paths.clone());
 
-        service
-            .save_provider(ProviderRecord {
-                id: "acme".into(),
-                name: "Acme".into(),
-                kind: ProviderKind::Custom,
-                base_url: "https://example.com/v1".into(),
-                model: "gpt-5.5".into(),
-                api_key: "sk-acme-123456".into(),
-                env_key: String::new(),
-                http_headers: BTreeMap::new(),
-                query_params: BTreeMap::new(),
-                supports_websockets: false,
-                active: false,
-                enabled: true,
-                last_validated_at: None,
-                last_validation_status: "unknown".into(),
-            })
+        let providers = service
+            .save_provider(custom_provider("jobmd", "JobMD A", "sk-a"))
             .unwrap();
+        let local_id = providers
+            .into_iter()
+            .find(|provider| provider.provider_id == "jobmd")
+            .unwrap()
+            .local_id;
 
         service
             .activate_provider(
-                "acme".into(),
+                local_id,
                 "/Applications/Codex Helm.app/Contents/MacOS/Codex Helm".into(),
             )
             .unwrap();
         let config = std::fs::read_to_string(paths.config_file()).unwrap();
 
-        assert!(config.contains("model_provider = \"acme\""));
-        assert!(config.contains("model = \"gpt-5.5\""));
-        assert!(
-            config.contains("command = \"/Applications/Codex Helm.app/Contents/MacOS/Codex Helm\"")
+        assert!(config.contains("model_provider = \"jobmd\""));
+        assert!(config.contains("[model_providers.jobmd]"));
+        assert!(config.contains("\"--provider-token-id\""));
+        assert!(config.contains(&format!("\"{local_id}\"")));
+        assert_eq!(
+            service.token_for_provider_local_id(local_id).unwrap(),
+            "sk-a"
         );
-        assert!(config.contains("\"--provider-token\""));
     }
 
     #[test]
-    fn activate_openai_clears_custom_auth_bridge() {
+    fn activating_second_duplicate_provider_uses_second_key() {
         let temp = tempdir().unwrap();
         let paths = AppPaths::from_home(temp.path().to_path_buf());
         let service = ProviderService::new(paths.clone());
 
         service
-            .save_provider(ProviderRecord {
-                id: "acme".into(),
-                name: "Acme".into(),
-                kind: ProviderKind::Custom,
-                base_url: "https://example.com/v1".into(),
-                model: "gpt-5.5".into(),
-                api_key: "sk-acme-123456".into(),
-                env_key: String::new(),
-                http_headers: BTreeMap::new(),
-                query_params: BTreeMap::new(),
-                supports_websockets: false,
-                active: false,
-                enabled: true,
-                last_validated_at: None,
-                last_validation_status: "unknown".into(),
-            })
+            .save_provider(custom_provider("jobmd", "JobMD A", "sk-a"))
+            .unwrap();
+        let providers = service
+            .save_provider(custom_provider("jobmd", "JobMD B", "sk-b"))
+            .unwrap();
+        let second_local_id = providers
+            .into_iter()
+            .filter(|provider| provider.provider_id == "jobmd")
+            .map(|provider| provider.local_id)
+            .max()
             .unwrap();
 
-        service
-            .activate_provider("acme".into(), "/tmp/codex-helm".into())
+        let providers = service
+            .activate_provider(second_local_id, "/tmp/codex-helm".into())
             .unwrap();
-        service
-            .activate_provider("openai".into(), "/tmp/codex-helm".into())
-            .unwrap();
-
         let config = std::fs::read_to_string(paths.config_file()).unwrap();
-        assert!(config.contains("model_provider = \"openai\""));
-        assert!(!config.contains("--provider-token"));
-        assert!(!config.contains("command = \"/tmp/codex-helm\""));
-        assert!(!config.contains("[model_providers.openai]"));
-        assert!(!config.contains("requires_openai_auth = true"));
+
+        assert!(config.contains("model_provider = \"jobmd\""));
+        assert!(config.contains(&format!("\"{second_local_id}\"")));
+        assert_eq!(
+            service
+                .token_for_provider_local_id(second_local_id)
+                .unwrap(),
+            "sk-b"
+        );
+        assert!(providers
+            .iter()
+            .any(|provider| provider.local_id == second_local_id && provider.active));
+    }
+
+    #[test]
+    fn delete_active_provider_is_rejected() {
+        let temp = tempdir().unwrap();
+        let service = ProviderService::new(AppPaths::from_home(temp.path().to_path_buf()));
+
+        let providers = service
+            .save_provider(custom_provider("acme", "Acme", "sk-acme"))
+            .unwrap();
+        let local_id = providers
+            .into_iter()
+            .find(|provider| provider.provider_id == "acme")
+            .unwrap()
+            .local_id;
+        service
+            .activate_provider(local_id, "/tmp/codex-helm".into())
+            .unwrap();
+
+        let error = service.delete_provider(local_id).unwrap_err();
+
+        assert!(error.to_string().contains("active provider"));
+    }
+
+    #[test]
+    fn delete_inactive_provider_removes_sqlite_record() {
+        let temp = tempdir().unwrap();
+        let service = ProviderService::new(AppPaths::from_home(temp.path().to_path_buf()));
+
+        let providers = service
+            .save_provider(custom_provider("acme", "Acme", "sk-acme"))
+            .unwrap();
+        let local_id = providers
+            .into_iter()
+            .find(|provider| provider.provider_id == "acme")
+            .unwrap()
+            .local_id;
+
+        let providers = service.delete_provider(local_id).unwrap();
+
+        assert!(!providers
+            .iter()
+            .any(|provider| provider.local_id == local_id));
+        assert!(!service
+            .list_providers()
+            .unwrap()
+            .iter()
+            .any(|provider| provider.local_id == local_id));
     }
 
     #[test]
@@ -475,22 +553,7 @@ mod tests {
         let service = ProviderService::new(paths.clone());
 
         service
-            .save_provider(ProviderRecord {
-                id: "acme".into(),
-                name: "Acme".into(),
-                kind: ProviderKind::Custom,
-                base_url: "https://example.com/v1".into(),
-                model: "gpt-5.5".into(),
-                api_key: "sk-acme-123456".into(),
-                env_key: String::new(),
-                http_headers: BTreeMap::new(),
-                query_params: BTreeMap::new(),
-                supports_websockets: false,
-                active: false,
-                enabled: true,
-                last_validated_at: None,
-                last_validation_status: "unknown".into(),
-            })
+            .save_provider(custom_provider("acme", "Acme", "sk-acme"))
             .unwrap();
 
         std::fs::create_dir_all(paths.codex_dir()).unwrap();
@@ -508,7 +571,7 @@ base_url = "https://example.com/v1"
 
 [model_providers.acme.auth]
 command = "/tmp/codex-helm"
-args = ["--provider-token", "acme"]
+args = ["--provider-token-id", "4"]
 
 [model_providers.openai]
 name = "OpenAI"
@@ -527,9 +590,9 @@ requires_openai_auth = true
         assert!(!config.contains("requires_openai_auth = true"));
         assert!(!config.contains("preferred_auth_method"));
         assert!(!config.contains("experimental_bearer_token"));
-        assert!(!config.contains("--provider-token"));
+        assert!(!config.contains("--provider-token-id"));
         assert!(providers
             .iter()
-            .any(|provider| provider.id == "openai" && provider.active));
+            .any(|provider| provider.provider_id == "openai" && provider.active));
     }
 }

@@ -6,6 +6,8 @@ pub enum AppError {
     Io(#[from] std::io::Error),
     #[error("failed to parse json: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("sqlite error: {0}")]
+    Sqlite(#[from] rusqlite::Error),
     #[error("failed to parse toml: {0}")]
     Toml(#[from] toml::de::Error),
     #[error("failed to serialize toml: {0}")]

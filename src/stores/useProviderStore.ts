@@ -11,9 +11,9 @@ type ProviderStore = {
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
-  saveProvider: (provider: ProviderRecord) => Promise<void>;
-  deleteProvider: (providerId: string) => Promise<void>;
-  activateProvider: (providerId: string) => Promise<void>;
+  saveProvider: (provider: ProviderRecord) => Promise<ProviderRecord[]>;
+  deleteProvider: (localId: number) => Promise<void>;
+  activateProvider: (localId: number) => Promise<void>;
   restoreOfficialDefaults: () => Promise<void>;
   testProviderConnectivity: (provider: ProviderRecord) => Promise<ProviderConnectivityResult>;
   validateProvider: (provider: ProviderRecord) => Promise<ProviderValidationResult>;
@@ -39,13 +39,14 @@ export const useProviderStore = create<ProviderStore>((set) => ({
   saveProvider: async (provider) => {
     const providers = await tauriInvoke<ProviderRecord[]>("save_provider", { provider });
     set({ providers });
+    return providers;
   },
-  deleteProvider: async (providerId) => {
-    const providers = await tauriInvoke<ProviderRecord[]>("delete_provider", { providerId });
+  deleteProvider: async (localId) => {
+    const providers = await tauriInvoke<ProviderRecord[]>("delete_provider", { localId });
     set({ providers });
   },
-  activateProvider: async (providerId) => {
-    const providers = await tauriInvoke<ProviderRecord[]>("activate_provider", { providerId });
+  activateProvider: async (localId) => {
+    const providers = await tauriInvoke<ProviderRecord[]>("activate_provider", { localId });
     set({ providers });
   },
   restoreOfficialDefaults: async () => {

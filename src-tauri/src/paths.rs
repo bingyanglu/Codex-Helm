@@ -33,6 +33,10 @@ impl AppPaths {
         self.manager_dir().join("settings.json")
     }
 
+    pub fn settings_db_file(&self) -> PathBuf {
+        self.manager_dir().join("settings.sqlite3")
+    }
+
     pub fn auth_file(&self) -> PathBuf {
         self.codex_dir().join("auth.json")
     }

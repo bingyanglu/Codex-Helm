@@ -12,8 +12,10 @@ dist
 dist-ssr
 *.local
 .claude/
+.playwright-cli/
 backups/
 docs/
+skills/
 
 # Editor directories and files
 .vscode/*

@@ -25,7 +25,8 @@ vi.mock("@/stores/useProviderStore", () => ({
   useProviderStore: () => ({
     providers: [
       {
-        id: "openai",
+        localId: 1,
+        providerId: "openai",
         name: "OpenAI",
         kind: "builtin",
         baseUrl: "https://api.openai.com/v1",

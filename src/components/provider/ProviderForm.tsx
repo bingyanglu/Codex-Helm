@@ -38,8 +38,8 @@ export function ProviderForm({
               ? "border-stone-200 bg-stone-100 text-stone-500"
               : "border-black/10 bg-white"
           }`}
-          value={draft.id}
-          onChange={(event) => setDraft({ ...draft, id: event.target.value })}
+          value={draft.providerId}
+          onChange={(event) => setDraft({ ...draft, providerId: event.target.value })}
           placeholder="服务标识，例如 jobmd"
           readOnly={isEditing}
         />

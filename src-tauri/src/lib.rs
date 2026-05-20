@@ -2,6 +2,7 @@ pub mod auth;
 pub mod commands;
 pub mod config;
 pub mod error;
+pub mod first_start;
 pub mod models;
 pub mod monitor;
 pub mod overview;
@@ -27,6 +28,9 @@ pub fn run() {
             commands::provider::validate_provider,
             commands::provider::test_provider_connectivity,
             commands::provider::validate_provider_key,
+            commands::first_start::scan_first_start_import,
+            commands::first_start::import_first_start_provider,
+            commands::first_start::mark_first_start_import_handled,
             commands::monitor::get_monitor_summary,
             commands::monitor::get_monitor_trend,
             commands::monitor::get_monitor_logs,
