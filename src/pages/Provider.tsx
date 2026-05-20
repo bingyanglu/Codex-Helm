@@ -78,6 +78,7 @@ function mapDraftToProvider(draft: ProviderDraft, existing?: ProviderRecord | nu
     httpHeaders: existing?.httpHeaders ?? {},
     queryParams: existing?.queryParams ?? {},
     supportsWebsockets: draft.supportsWebsockets,
+    requiresOpenaiAuth: existing?.requiresOpenaiAuth ?? false,
     active: existing?.active ?? false,
     enabled: true,
     lastValidatedAt: existing?.lastValidatedAt ?? null,

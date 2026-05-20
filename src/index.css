@@ -974,4 +974,140 @@ select {
   .check {
     grid-template-columns: 28px 1fr;
   }
+
+  .mode-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mode-compare-head,
+  .mode-compare-row {
+    grid-template-columns: minmax(80px, 1fr) repeat(3, minmax(60px, 1fr));
+  }
+}
+
+/* ── RunMode page ──────────────────────────────────────────── */
+
+.mode-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mode-card {
+  appearance: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  min-height: 110px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
+}
+
+.mode-card:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+}
+
+.mode-card.active {
+  border-color: var(--primary);
+  background: var(--bg-hover);
+}
+
+.mode-card strong {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.mode-card span {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+
+.mode-card:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mode-card-hint {
+  font-size: 11px;
+  color: var(--warn-fg);
+  font-style: normal;
+  margin-top: 4px;
+}
+
+.mode-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mode-status-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.mode-status-label {
+  font-size: 11.5px;
+  color: var(--text-3);
+  margin-bottom: 4px;
+}
+
+.mode-status-value {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  word-break: break-all;
+}
+
+.mode-compare {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-card);
+}
+
+.mode-compare-head,
+.mode-compare-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) repeat(3, minmax(80px, 1fr));
+  gap: 8px;
+  align-items: center;
+  padding: 10px 16px;
+}
+
+.mode-compare-head {
+  background: var(--bg-card-muted);
+  border-bottom: 1px solid var(--border);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-3);
+}
+
+.mode-compare-row {
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-2);
+}
+
+.mode-compare-row:last-child {
+  border-bottom: 0;
+}
+
+.mode-compare-row.active {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.mode-compare-name {
+  font-weight: 500;
+  color: var(--text);
 }

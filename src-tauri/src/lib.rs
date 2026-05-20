@@ -25,6 +25,7 @@ pub fn run() {
             commands::provider::delete_provider,
             commands::provider::activate_provider,
             commands::provider::restore_official_provider_defaults,
+            commands::provider::switch_run_mode,
             commands::provider::validate_provider,
             commands::provider::test_provider_connectivity,
             commands::provider::validate_provider_key,

@@ -12,6 +12,7 @@ export type ProviderRecord = {
   httpHeaders: Record<string, string>;
   queryParams: Record<string, string>;
   supportsWebsockets: boolean;
+  requiresOpenaiAuth: boolean;
   active: boolean;
   enabled: boolean;
   lastValidatedAt: string | null;
