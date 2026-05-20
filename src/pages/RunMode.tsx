@@ -73,8 +73,6 @@ export function RunModePage() {
 
   const [draft, setDraft] = useState<ConfigInput>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [showRaw, setShowRaw] = useState(false);
 
   useEffect(() => {
     void refreshProviders();
@@ -250,7 +248,7 @@ export function RunModePage() {
           </div>
         </div>
 
-        <label className="provider-check mb-fields">
+        <label className="provider-check">
           <input
             type="checkbox"
             checked={draft.toolsViewImage}
@@ -258,33 +256,6 @@ export function RunModePage() {
           />
           <span>tools.view_image — 允许 Codex 查看图片</span>
         </label>
-
-        <button type="button" className="disclosure" onClick={() => setShowAdvanced((v) => !v)}>
-          <Icon name="chevron" size={12} strokeWidth={2.2} />
-          历史记录设置
-        </button>
-        {showAdvanced && (
-          <div className="disclosure-body">
-            <div className="grid-2">
-              <div className="field">
-                <label htmlFor="cfg-hist-pers">history.persistence</label>
-                <select id="cfg-hist-pers" value={draft.historyPersistence} onChange={(e) => up("historyPersistence", e.target.value)}>
-                  <option value="save-all">save-all</option>
-                  <option value="save-none">save-none</option>
-                </select>
-              </div>
-              <div className="field">
-                <label htmlFor="cfg-hist-max">history.max_bytes</label>
-                <input
-                  id="cfg-hist-max"
-                  type="number"
-                  value={draft.historyMaxBytes}
-                  onChange={(e) => up("historyMaxBytes", Number(e.target.value) || 0)}
-                />
-              </div>
-            </div>
-          </div>
-        )}
 
         <div className="panel-foot">
           <Button variant="primary" onClick={() => void handleSaveConfig()} disabled={saving}>
@@ -317,21 +288,6 @@ export function RunModePage() {
           ))}
         </div>
       </Panel>
-
-      {/* ── Panel 4: 原始配置 (折叠) ── */}
-      <div>
-        <button type="button" className="disclosure" onClick={() => setShowRaw((v) => !v)}>
-          <Icon name="chevron" size={12} strokeWidth={2.2} />
-          原始 config.toml{showRaw ? "（收起）" : "（展开查看）"}
-        </button>
-        {showRaw && config && (
-          <div className="disclosure-body" style={{ padding: 0, background: "none", border: "none" }}>
-            <div className="card tight" style={{ marginTop: 8 }}>
-              <pre className="raw-toml">{config.rawToml || "# 当前配置为空"}</pre>
-            </div>
-          </div>
-        )}
-      </div>
 
     </section>
   );
